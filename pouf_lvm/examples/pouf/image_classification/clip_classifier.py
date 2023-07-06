@@ -30,12 +30,18 @@ class TextEncoder(nn.Module):
         x = self.ln_final(x).type(self.dtype)
 
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = x[torch.arange(x.shape[0]), tokenized_prompts.argmax(dim=-1)] @ self.text_projection
+        x = x[torch.arange(x.shape[0]),
+              tokenized_prompts.argmax(dim=-1)] @ self.text_projection
 
         return x
 
+
 class PromptLearner(nn.Module):
-    def __init__(self, classnames, clip_model, device, ctx_init="a photo of a"):
+    def __init__(self,
+                 classnames,
+                 clip_model,
+                 device,
+                 ctx_init="a photo of a"):
         super().__init__()
         n_cls = len(classnames)
         ctx_init = ctx_init
@@ -44,14 +50,13 @@ class PromptLearner(nn.Module):
         clip_imsize = clip_model.visual.input_resolution
         cfg_imsize = clip_imsize
 
-       
         # use given words to initialize context vectors
         ctx_init = ctx_init.replace("_", " ")
         n_ctx = len(ctx_init.split(" "))
         prompt = clip.tokenize(ctx_init).to(device)
         with torch.no_grad():
             embedding = clip_model.token_embedding(prompt).type(dtype)
-        ctx_vectors = embedding[0, 1 : 1 + n_ctx, :]
+        ctx_vectors = embedding[0, 1:1 + n_ctx, :]
         prompt_prefix = ctx_init
 
         print(f'Initial context: "{prompt_prefix}"')
@@ -63,15 +68,18 @@ class PromptLearner(nn.Module):
         name_lens = [len(_tokenizer.encode(name)) for name in classnames]
         prompts = [prompt_prefix + " " + name + "." for name in classnames]
 
-        tokenized_prompts = torch.cat([clip.tokenize(p) for p in prompts]).to(device)
+        tokenized_prompts = torch.cat([clip.tokenize(p)
+                                       for p in prompts]).to(device)
         with torch.no_grad():
-            embedding = clip_model.token_embedding(tokenized_prompts).type(dtype)
+            embedding = clip_model.token_embedding(tokenized_prompts).type(
+                dtype)
 
         # These token vectors will be saved when in save_model(),
         # but they should be ignored in load_model() as we want to use
         # those computed using the current class names
         self.register_buffer("token_prefix", embedding[:, :1, :])  # SOS
-        self.register_buffer("token_suffix", embedding[:, 1 + n_ctx :, :])  # CLS, EOS
+        self.register_buffer("token_suffix",
+                             embedding[:, 1 + n_ctx:, :])  # CLS, EOS
 
         self.n_cls = n_cls
         self.n_ctx = n_ctx
@@ -89,13 +97,14 @@ class PromptLearner(nn.Module):
         prompts = torch.cat(
             [
                 prefix,  # (n_cls, 1, dim)
-                ctx,     # (n_cls, n_ctx, dim)
+                ctx,  # (n_cls, n_ctx, dim)
                 suffix,  # (n_cls, *, dim)
             ],
             dim=1,
         )
 
         return prompts
+
 
 class ClipClassifier(nn.Module):
     """A generic Classifier class for domain adaptation.
@@ -131,20 +140,29 @@ class ClipClassifier(nn.Module):
         - features: (minibatch, `features_dim`)
 
     """
-
-    def __init__(self, model: nn.Module, class_names: List[str], num_classes: int, learn_prompt: bool, bottleneck: Optional[nn.Module] = None, bottleneck_dim: Optional[int] = -1, head: Optional[nn.Module] = None, finetune=True, pool_layer=None, device=None):
+    def __init__(self,
+                 model: nn.Module,
+                 class_names: List[str],
+                 num_classes: int,
+                 learn_prompt: bool,
+                 bottleneck: Optional[nn.Module] = None,
+                 bottleneck_dim: Optional[int] = -1,
+                 head: Optional[nn.Module] = None,
+                 finetune=True,
+                 pool_layer=None,
+                 device=None):
         super(ClipClassifier, self).__init__()
         self.learn_prompt = learn_prompt
         self.class_names = [" ".join(c.split("_")) for c in class_names]
         self.model = model
-        self.text_inputs = torch.cat([clip.tokenize(f"a photo of a {c}") for c in self.class_names]).to(device) 
+        self.text_inputs = torch.cat([
+            clip.tokenize(f"a photo of a {c}") for c in self.class_names
+        ]).to(device)
         self.logit_scale = model.logit_scale
         self.num_classes = num_classes
         if pool_layer is None:
             self.pool_layer = nn.Sequential(
-                nn.AdaptiveAvgPool2d(output_size=(1, 1)),
-                nn.Flatten()
-            )
+                nn.AdaptiveAvgPool2d(output_size=(1, 1)), nn.Flatten())
         else:
             self.pool_layer = pool_layer
         if bottleneck is None:
@@ -154,14 +172,15 @@ class ClipClassifier(nn.Module):
             self.bottleneck = bottleneck
             assert bottleneck_dim > 0
             self._features_dim = bottleneck_dim
-        
+
         self.image_bottleneck = nn.Identity()
         self.text_bottleneck = nn.Identity()
         self.finetune = finetune
 
         if self.learn_prompt:
             self.model.text_encoder = TextEncoder(model)
-            self.prompt_learner = PromptLearner(self.class_names, self.model, device)
+            self.prompt_learner = PromptLearner(self.class_names, self.model,
+                                                device)
             self.turn_off_model_gradient()
 
     @property
@@ -176,37 +195,56 @@ class ClipClassifier(nn.Module):
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """"""
-        image_features = self.image_bottleneck(self.model.encode_image(x)) 
+        image_features = self.image_bottleneck(self.model.encode_image(x))
         f = image_features
- 
+
         if self.learn_prompt:
             prompts = self.prompt_learner()
-            text_features = self.text_bottleneck(self.model.text_encoder(prompts, self.prompt_learner.tokenized_prompts)                            )
+            text_features = self.text_bottleneck(
+                self.model.text_encoder(prompts,
+                                        self.prompt_learner.tokenized_prompts))
         else:
-            text_features = self.text_bottleneck(self.model.encode_text(self.text_inputs))
+            text_features = self.text_bottleneck(
+                self.model.encode_text(self.text_inputs))
 
-        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        
+        image_features = image_features / image_features.norm(dim=-1,
+                                                              keepdim=True)
+        text_features = text_features / text_features.norm(dim=-1,
+                                                           keepdim=True)
+
         sim = image_features @ text_features.T
-        if self.training:
-            return sim, f
-        else:
-            return sim 
 
-    def get_parameters(self, base_lr=1.0, prompt_lr=5e-4, model_lr=5e-5) -> List[Dict]:
+        return sim
+
+    def get_parameters(self,
+                       base_lr=1.0,
+                       prompt_lr=5e-4,
+                       model_lr=5e-5) -> List[Dict]:
         """A parameter list which decides optimization hyper-parameters,
             such as the relative learning rate of each layer
         """
         if self.learn_prompt:
-            params = [
-                    {"params": self.prompt_learner.parameters(), "lr": prompt_lr * base_lr},
-                    {"params": self.logit_scale, "lr": model_lr * base_lr}
-            ]
+            params = [{
+                "params": self.prompt_learner.parameters(),
+                "lr": prompt_lr * base_lr
+            }, {
+                "params": self.logit_scale,
+                "lr": model_lr * base_lr
+            }]
         else:
             params = [
-                {"params": self.model.parameters(), "lr": model_lr * base_lr if self.finetune else 1.0 * base_lr},
-                {"params": self.image_bottleneck.parameters(), "lr": 1.0 * base_lr},
-                {"params": self.text_bottleneck.parameters(), "lr": 1.0 * base_lr },
-            ] 
+                {
+                    "params": self.model.parameters(),
+                    "lr":
+                    model_lr * base_lr if self.finetune else 1.0 * base_lr
+                },
+                {
+                    "params": self.image_bottleneck.parameters(),
+                    "lr": 1.0 * base_lr
+                },
+                {
+                    "params": self.text_bottleneck.parameters(),
+                    "lr": 1.0 * base_lr
+                },
+            ]
         return params
