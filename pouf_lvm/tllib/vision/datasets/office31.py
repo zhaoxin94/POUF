@@ -36,10 +36,10 @@ class Office31(ImageList):
                 webcam.txt
     """
     download_list = [
-        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/d9bca681c71249f19da2/?dl=1"),
-        ("amazon", "amazon.tgz", "https://cloud.tsinghua.edu.cn/f/edc8d1bba1c740dc821c/?dl=1"),
-        ("dslr", "dslr.tgz", "https://cloud.tsinghua.edu.cn/f/ca6df562b7e64850ad7f/?dl=1"),
-        ("webcam", "webcam.tgz", "https://cloud.tsinghua.edu.cn/f/82b24ed2e08f4a3c8888/?dl=1"),
+        ("image_list", "image_list.zip", "https://cloud.tsinghua.edu.cn/f/0ac1924f514b44788d1d/?dl=1"),
+        ("amazon", "amazon.tgz", "https://cloud.tsinghua.edu.cn/f/f40e5a484e7d43af9403/?dl=1"),
+        ("dslr", "dslr.tgz", "https://cloud.tsinghua.edu.cn/f/a6bc0fcca766496cb112/?dl=1"),
+        ("webcam", "webcam.tgz", "https://cloud.tsinghua.edu.cn/f/2e89cf41a299411093f0/?dl=1"),
     ]
     image_list = {
         "A": "image_list/amazon.txt",
@@ -55,10 +55,10 @@ class Office31(ImageList):
         assert task in self.image_list
         data_list_file = os.path.join(root, self.image_list[task])
 
-        if download:
-            list(map(lambda args: download_data(root, *args), self.download_list))
-        else:
-            list(map(lambda file_name, _: check_exits(root, file_name), self.download_list))
+        # if download:
+        #     list(map(lambda args: download_data(root, *args), self.download_list))
+        # else:
+        # list(map(lambda file_name, _: check_exits(root, file_name), self.download_list))
 
         super(Office31, self).__init__(root, Office31.CLASSES, data_list_file=data_list_file, **kwargs)
 

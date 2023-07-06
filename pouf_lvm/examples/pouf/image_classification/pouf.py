@@ -205,7 +205,7 @@ def train(train_target_iter: ForeverDataIterator, model: ClipClassifier,
         data_time.update(time.time() - end)
 
         # compute output
-        sim_t, f_t = model(x_t)
+        sim_t = model(x_t)
 
         logit_scale = model.logit_scale.exp()
         logits = logit_scale * sim_t
